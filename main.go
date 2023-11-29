@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 )
 
 const URL = "http://localhost:8010/blob/"
@@ -42,6 +43,20 @@ func BlobListRequest(seedStr string) (*http.Request, error) {
 	if err != nil {
 		return r, err
 	}
+	seed := depkeypair.MustParse(seedStr)
+	err = signcontrol.SignRequest(r, seed)
+	if err != nil {
+		return r, err
+	}
+	return r, nil
+}
+
+func CheckTimeConstraint(seedStr string) (*http.Request, error) {
+	r, err := http.NewRequest("GET", URL, nil)
+	if err != nil {
+		return r, err
+	}
+	r.Header.Set("date", time.Now().UTC().Add(-1*time.Hour).Format(http.TimeFormat))
 	seed := depkeypair.MustParse(seedStr)
 	err = signcontrol.SignRequest(r, seed)
 	if err != nil {
@@ -94,7 +109,7 @@ func Do(r *http.Request) {
 func main() {
 	e := false
 	for !e {
-		fmt.Println("Enter command letter:\ne-exit\nc-create\nd-delete\ng-get by id\nl - get list")
+		fmt.Println("Enter command letter:\ne-exit\nc-create\nd-delete\ng-get by id\nl - get list\nu - test unique\nt - time constraint test")
 		reader := bufio.NewReader(os.Stdin)
 		command, err := reader.ReadString('\n')
 		if err != nil {
@@ -196,7 +211,35 @@ func main() {
 				panic(err)
 			}
 			Do(r)
-
+		case 'u':
+			fmt.Println("Enter your seed:")
+			seedStr, err := reader.ReadString('\n')
+			if err != nil {
+				fmt.Println("An error occured while reading input. Please try again", err)
+				return
+			}
+			seedStr = seedStr[:len(seedStr)-2]
+			r, err := BlobListRequest(seedStr)
+			if err != nil {
+				fmt.Println(err)
+				break
+			}
+			Do(r)
+			Do(r)
+		case 't':
+			fmt.Println("Enter your seed:")
+			seedStr, err := reader.ReadString('\n')
+			if err != nil {
+				fmt.Println("An error occured while reading input. Please try again", err)
+				return
+			}
+			seedStr = seedStr[:len(seedStr)-2]
+			r, err := CheckTimeConstraint(seedStr)
+			if err != nil {
+				fmt.Println(err)
+				break
+			}
+			Do(r)
 		}
 	}
 }
